@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var stopItem: NSMenuItem!
     private var hotkey: Hotkey?
     private let recorder = Recorder()
+    private var transcribeWindowController: TranscribeWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -24,6 +25,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let openItem = NSMenuItem(title: "Open Recordings Folder", action: #selector(openFolder), keyEquivalent: "")
         openItem.target = self
         menu.addItem(openItem)
+        let transcribeItem = NSMenuItem(title: "Transcribe Recording…", action: #selector(openTranscribeWindow), keyEquivalent: "")
+        transcribeItem.target = self
+        menu.addItem(transcribeItem)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         menu.autoenablesItems = false
@@ -51,6 +55,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let dir = Recorder.recordingsDirectory
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         NSWorkspace.shared.open(dir)
+    }
+
+    @objc private func openTranscribeWindow() {
+        if transcribeWindowController == nil {
+            transcribeWindowController = TranscribeWindowController()
+        }
+        transcribeWindowController?.showWindow(nil)
     }
 
     private func updateUI(recording: Bool) {
