@@ -3,19 +3,27 @@
 # as its own responsible process (not the terminal that launched it).
 #
 # Usage:
-#   ./build-app.sh             # release build
-#   ./build-app.sh debug       # debug build
+#   ./build-app.sh                       # release build, leaves bundle in repo
+#   ./build-app.sh debug                 # debug build
+#   ./build-app.sh --install             # release build, also copies to /Applications/
+#   ./build-app.sh debug --install       # combined
 #
 # After building, launch with:
 #   open MeetingRecorder.app
+# or, when installed:
+#   open /Applications/MeetingRecorder.app
 
 set -euo pipefail
 
-CONFIG="${1:-release}"
-case "$CONFIG" in
-    debug|release) ;;
-    *) echo "Usage: $0 [debug|release]"; exit 1 ;;
-esac
+CONFIG="release"
+INSTALL=0
+for arg in "$@"; do
+    case "$arg" in
+        debug|release) CONFIG="$arg" ;;
+        --install|-i)  INSTALL=1 ;;
+        *) echo "Usage: $0 [debug|release] [--install]" >&2; exit 1 ;;
+    esac
+done
 
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 APP_NAME="MeetingRecorder"
@@ -72,4 +80,28 @@ codesign --force --deep --sign - "$APP_BUNDLE"
 
 echo
 echo "Built: $APP_BUNDLE"
-echo "Launch: open \"$APP_BUNDLE\""
+
+if [[ "$INSTALL" -eq 1 ]]; then
+    INSTALL_DEST="/Applications/$APP_NAME.app"
+    # macOS won't let us overwrite a running app — quit it first.
+    if pgrep -x "$APP_NAME" >/dev/null; then
+        echo "==> Quitting running $APP_NAME..."
+        pkill -x "$APP_NAME" || true
+        # Brief settle window so the lock on the bundle clears.
+        for _ in 1 2 3 4 5; do
+            pgrep -x "$APP_NAME" >/dev/null || break
+            sleep 0.5
+        done
+    fi
+    echo "==> Installing to ${INSTALL_DEST}..."
+    rm -rf "$INSTALL_DEST"
+    cp -R "$APP_BUNDLE" "$INSTALL_DEST"
+    # Re-register so LaunchServices/Spotlight pick up the new copy immediately.
+    /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister \
+        -f "$INSTALL_DEST" >/dev/null 2>&1 || true
+    echo "Installed: $INSTALL_DEST"
+    echo "Launch via Spotlight (Cmd-Space) or: open \"$INSTALL_DEST\""
+else
+    echo "Launch: open \"$APP_BUNDLE\""
+    echo "Tip: pass --install to also copy into /Applications/."
+fi
